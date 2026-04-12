@@ -272,35 +272,46 @@
         };
         document.getElementById('in-btn').onclick = window.processIncome;
 
-        window.processWithdraw = () => {
-    const amt = parseFloat(document.getElementById('out-amount').value);
-    const src = document.getElementById('out-source').value;
-    
-    // Buat daftar nama rapi di sini
-    const namaRapi = {
-        gaji: 'Gaji Aparatur',
-        aceh: 'Dana Khusus', // Ganti 'Dana Khusus' sesuai keinginanmu
-        infra: 'Infrastruktur',
-        darurat: 'Emergency'
-    };
+       window.processWithdraw = () => {
+            const amt = parseFloat(document.getElementById('out-amount').value);
+            const src = document.getElementById('out-source').value;
+            
+            const namaRapi = {
+                gaji: 'Gaji Aparatur',
+                aceh: 'Dana Khusus',
+                infra: 'Infrastruktur',
+                darurat: 'Emergency'
+            };
 
-    if(!amt || isNaN(amt)) return;
-    if(localData.balances[src] < amt) return alert("Saldo " + namaRapi[src] + " tidak mencukupi!");
+            // Validasi Input
+            if(!amt || isNaN(amt) || amt <= 0) return alert("Masukkan nominal yang valid!");
+            
+            // Cek apakah saldo di rekening spesifik mencukupi
+            if(localData.balances[src] < amt) {
+                return alert("Saldo " + namaRapi[src] + " tidak mencukupi! (Tersedia: Rp " + localData.balances[src].toLocaleString('id-ID') + ")");
+            }
 
-    const newB = {...localData.balances}; 
-    newB[src] -= amt;
+            // PERBAIKAN LOGIKA: Kurangi saldo pada rekening yang dipilih
+            const newBalances = { ...localData.balances }; 
+            newBalances[src] = newBalances[src] - amt;
 
-    set(ref(database, `${dbPath}/balances`), newB);
-    
-    // BAGIAN YANG DIUBAH: Menggunakan namaRapi[src] agar tidak muncul "ACEH"
-    push(ref(database, `${dbPath}/history`), { 
-        time: new Date().toLocaleTimeString('id-ID'), 
-        desc: `Penarikan: ${namaRapi[src]}`, // Sekarang akan muncul "Penarikan: Dana Khusus"
-        amount: amt, 
-        type: 'OUT' 
-    });
-
-        document.getElementById('out-amount').value = '';
+            // Update ke Firebase
+            set(ref(database, `${dbPath}/balances`), newBalances)
+                .then(() => {
+                    // Catat ke riwayat hanya jika update saldo berhasil
+                    push(ref(database, `${dbPath}/history`), { 
+                        time: new Date().toLocaleTimeString('id-ID'), 
+                        desc: `Penarikan: ${namaRapi[src]}`, 
+                        amount: amt, 
+                        type: 'OUT' 
+                    });
+                    
+                    // Reset field input
+                    document.getElementById('out-amount').value = '';
+                })
+                .catch((error) => {
+                    alert("Gagal memperbarui saldo: " + error.message);
+                });
         };
 
         document.getElementById('out-btn').onclick = window.processWithdraw;
