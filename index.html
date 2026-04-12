@@ -238,8 +238,57 @@
         }
 
         // Global Delete Function
+       // Global Delete Function dengan fitur Refund Saldo
         window.deleteData = (path) => {
-            if(confirm("Apakah Anda yakin ingin menghapus data ini?")) {
+            if(confirm("Apakah Anda yakin ingin menghapus data ini? Saldo akan disesuaikan otomatis.")) {
+                // Jika yang dihapus adalah riwayat (history), kita perlu hitung balik saldonya
+                if (path.startsWith('history/')) {
+                    const transactionId = path.split('/')[1];
+                    const trx = localData.history[transactionId];
+
+                    if (trx) {
+                        const newBalances = { ...localData.balances };
+                        
+                        if (trx.type === 'IN') {
+                            // Jika hapus Pemasukan, maka saldo di semua akun dikurangi (karena saat masuk dibagi 40, 20, 30, 10)
+                            newBalances.gaji -= (trx.amount * 0.4);
+                            newBalances.aceh -= (trx.amount * 0.2);
+                            newBalances.infra -= (trx.amount * 0.3);
+                            newBalances.darurat -= (trx.amount * 0.1);
+                        } else if (trx.type === 'OUT') {
+                            // Jika hapus Pengeluaran, kembalikan saldo ke rekening asal
+                            // Kita deteksi rekening berdasarkan deskripsi atau logika mapping
+                            const mapping = {
+                                'Gaji Aparatur': 'gaji',
+                                'Dana Khusus': 'aceh',
+                                'Infrastruktur': 'infra',
+                                'Emergency': 'darurat'
+                            };
+                            
+                            // Mencari key rekening dari teks deskripsi (misal: "Penarikan: Dana Khusus")
+                            let foundKey = null;
+                            for (let label in mapping) {
+                                if (trx.desc.includes(label)) {
+                                    foundKey = mapping[label];
+                                    break;
+                                }
+                            }
+
+                            if (foundKey) {
+                                newBalances[foundKey] += trx.amount;
+                            }
+                        }
+
+                        // Update saldo baru ke Firebase sebelum menghapus log
+                        set(ref(database, `${dbPath}/balances`), newBalances)
+                            .then(() => {
+                                remove(ref(database, `${dbPath}/${path}`));
+                            });
+                        return;
+                    }
+                }
+                
+                // Jika hapus data lain (seperti karyawan), langsung hapus saja
                 remove(ref(database, `${dbPath}/${path}`));
             }
         };
